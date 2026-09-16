@@ -1,0 +1,17 @@
+本文件夹：Agent 工具层（最小级）
+作用：模型只能通过这里读代码、改文件、跑测试、提交、重启业务。SDK 的 @function_tool 全在 __init__.py。
+
+文件：
+- __init__.py
+    ForgeContext     一次 run 的侧信道（工作区、是否自动批、hotfix 写范围）
+    all_tools()      返回 17 个工具
+    只读：read_file / list_dir / grep_files / glob_files / search_code
+          git_status / git_diff / git_log / git_branch
+    8 类变更（需 HITL，仅 build 模式）：
+          write_file / delete_file / bash / git_checkout / git_commit
+          / git_push / run_tests / restart_service
+    _needs_hitl / _is_build   交给 SDK 决定是否暂停、是否对模型可见
+
+调用关系：
+    agent_runtime.build_agent → all_tools()
+    工具内部 → safety / sandbox / supervisor / backup / indexer

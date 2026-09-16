@@ -1,0 +1,11 @@
+{
+  "id": "csv",
+  "name": "CSV 表格",
+  "version": "1.0.0",
+  "publisher": "Forge",
+  "summary": "用编辑器打开 CSV。",
+  "exts": [".csv"],
+  "kind": "editor",
+  "recommended": false,
+  "license": "MIT"
+}

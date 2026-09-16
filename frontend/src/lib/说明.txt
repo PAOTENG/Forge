@@ -1,0 +1,8 @@
+本文件夹：前端纯逻辑（最小级）
+作用：SSE 解析、Office/Markdown 转换。不直接调 Agent 工具。
+
+文件：
+- chat.ts       连 /messages 和 /events，按 seq 重订阅，画 text_delta / 批准条
+- word.ts       docx 读写（配合 DocxEditor）
+- sheet.ts      xlsx 格子编辑（无公式引擎）
+- markdown.ts   Markdown 预览

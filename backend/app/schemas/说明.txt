@@ -1,0 +1,11 @@
+本文件夹：Pydantic API 契约（最小级）
+作用：校验前端 JSON，和 ORM 表分开。
+
+文件：
+- __init__.py
+    SessionCreate / SessionOut     开会话、侧栏状态（含 pending_tool、live_run）
+    MessageIn / MessageOut         发消息（可带 open_path）
+    ApprovalIn                     HITL once|session
+    WritePreviewIn / FileSaveIn    工作台预览 diff、人手保存
+    FsEntryIn / FsRenameIn         新建/重命名
+    CustomModelIn / DefaultModelIn 模型菜单

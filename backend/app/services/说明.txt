@@ -1,0 +1,20 @@
+本文件夹：业务服务层（最小级）
+作用：Agent 真正的“程序确定性控制”都在这里。路由和工具只调这些函数。
+
+文件与 Agent 功能：
+- agent_runtime.py   SDK Runner、SSE 总线、历史落库、补齐残缺 Tool Output、HITL resume
+                     （函数注释：业务 / 什么时候用 / 谁调用 / 参数 / 里面调用 / 是否主线）
+- safety.py          路径 jail、热修白名单、危险 Git/bash 硬拒绝
+- workspace.py       选目录、禁 C 盘、路径必须落在工作区内
+- sandbox.py         Docker 沙箱 ensure/exec/stop（设置：.env + config.py；镜像：infra/sandbox）
+- supervisor.py      拉起/重启 order-api、读 /canary 和 active_bug.txt
+- watchdog.py        金丝雀红了写收件箱
+- duty.py            企微/钉钉推送、排查 prompt、批准 token
+- backup.py          写前快照、按文件/会话回退、7 天 TTL
+- indexer.py         打开会话切块，search_code 用 ILIKE
+- messages.py        聊天气泡入库
+- project_notes.py   AGENTS.md 进系统提示、会话标题
+- llm_catalog.py     模型菜单与是否已配 Key
+- llm_prefs.py       data/preferred_model.txt
+- plugins.py         工作台插件库拷贝（不是 Agent 工具）
+- viewers.py         按扩展名选查看器

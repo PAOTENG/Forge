@@ -1,0 +1,11 @@
+{
+  "id": "code",
+  "name": "代码高亮",
+  "version": "1.0.2",
+  "publisher": "Forge",
+  "summary": "用编辑器打开 py / ts / js / vue 等源码。",
+  "exts": [".py", ".ts", ".tsx", ".js", ".jsx", ".vue", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".css", ".html", ".sql", ".toml", ".xml"],
+  "kind": "editor",
+  "recommended": true,
+  "license": "MIT"
+}

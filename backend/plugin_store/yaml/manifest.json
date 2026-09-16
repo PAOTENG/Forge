@@ -1,0 +1,11 @@
+{
+  "id": "yaml",
+  "name": "YAML",
+  "version": "1.0.0",
+  "publisher": "Forge",
+  "summary": "高亮 YAML 配置文件。",
+  "exts": [".yml", ".yaml"],
+  "kind": "editor",
+  "recommended": true,
+  "license": "MIT"
+}

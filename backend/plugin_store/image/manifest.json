@@ -1,0 +1,11 @@
+{
+  "id": "image",
+  "name": "图片预览",
+  "version": "1.0.0",
+  "publisher": "Forge",
+  "summary": "预览 png / jpg / gif / webp / svg。",
+  "exts": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"],
+  "kind": "image",
+  "recommended": true,
+  "license": "MIT"
+}

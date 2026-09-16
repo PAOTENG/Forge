@@ -1,0 +1,13 @@
+本文件夹：会话沙箱的 Docker 镜像配方。
+
+业务：
+    值班点排查或工作台新建会话时，sandbox.ensure 会找名为
+    forge-runner:latest 的镜像。本机没有就用这里的 Dockerfile 现编。
+    编好后容器 sleep infinity 挂着，模型 bash / 普通仓测试走 docker exec。
+
+不是：
+    不在这里写 network=none / 2g / 256 pid（那些在 .env + sandbox.py）。
+    不在这里启动容器（启动在 SandboxManager.ensure）。
+
+谁用：
+    sandbox._ensure_image() → docker images.build(path=本目录)。

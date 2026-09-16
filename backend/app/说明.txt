@@ -1,0 +1,15 @@
+本文件夹：Forge 后端 Python 包（app）
+作用：值班热修 Coding Agent 的服务端。FastAPI 进程在这里跑 OpenAI Agents SDK 的工具循环、HITL 批准、金丝雀巡检和 Postgres 落库。没有 LangGraph。
+
+本层文件：
+- __init__.py    包标记，无业务
+- main.py        进程入口：挂路由、启动时迁移/拉起 order-api/开 watchdog
+
+子文件夹（每个子文件夹另有自己的 说明.txt）：
+- tools/         模型可调用的 17 个工具
+- services/      Runtime、闸门、沙箱、值班、备份等业务逻辑
+- routers/       HTTP / SSE / WebSocket
+- models/        ORM 表
+- schemas/       API 入参出参
+- core/          配置与鉴权
+- db/            异步数据库连接

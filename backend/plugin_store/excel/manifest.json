@@ -1,0 +1,11 @@
+{
+  "id": "excel",
+  "name": "Excel 预览",
+  "version": "1.0.0",
+  "publisher": "Forge",
+  "summary": "预览 xlsx / xls。",
+  "exts": [".xlsx", ".xlsm", ".xls", ".ods"],
+  "kind": "spreadsheet",
+  "recommended": true,
+  "license": "MIT"
+}

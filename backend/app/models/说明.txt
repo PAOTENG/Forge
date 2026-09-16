@@ -1,0 +1,15 @@
+本文件夹：SQLAlchemy ORM 表（最小级）
+作用：Agent 状态、聊天、告警、备份等持久化。Alembic 靠这些类建表。
+
+文件：
+- __init__.py      汇总导出，给迁移和业务一次 import
+- session.py       sessions：一次排查会话
+- message.py       messages：气泡 + 工具日志
+- agent_state.py   agent_states：SDK input_items + pending 工具
+- audit.py         audits：人点允许/拒绝
+- backup.py        file_backups：写前快照元数据
+- chunk.py         file_chunks：search_code 切块（向量列预留）
+- duty.py          duty_alerts / duty_pending
+- user.py          users / auth_sessions
+- llm.py           custom_models
+- plugin.py        installed_plugins

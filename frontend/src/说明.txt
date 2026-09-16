@@ -1,0 +1,15 @@
+本文件夹：值班台 Vue 3 前端源码
+作用：对话、diff、批准、文件树、收件箱。Agent 跑在 :8787，这里只发 HTTP/SSE。
+手机窄屏同一套页面。
+
+本层文件：
+- main.ts        Vue 挂载
+- App.vue        工作台主界面
+- Boot.vue       启动/登录前引导
+- api.ts         调后端的封装
+- monaco.ts      代码编辑器
+- env.d.ts / mammoth.d.ts  类型声明
+
+子文件夹：
+- components/    收件箱、终端、回退、模型菜单等
+- lib/           SSE 对话、Word/Excel/Markdown 辅助

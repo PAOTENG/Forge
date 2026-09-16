@@ -1,0 +1,16 @@
+本文件夹：值班台 UI 组件（最小级）
+作用：把后端能力画成可点的界面，不实现工具循环。
+
+文件：
+- DutyInbox.vue      告警收件箱：签收、排查、关闭、模拟告警
+- TargetCard.vue     业务进程：启动/重启/切下一题、金丝雀状态
+- AuthGate.vue       登录/首次建管理员
+- UsersPanel.vue     管理员加工程师/只读
+- ModelMenu.vue      切默认模型
+- FolderPicker.vue   选工作区（禁 C 盘）
+- RollbackModal.vue  按文件/会话回退
+- UserTerminal.vue   WebSocket 终端
+- PluginPanel.vue    插件库卡片
+- DocxEditor.vue     Word 富文本（保存会重建 docx）
+- FeedbackLayer.vue  全局提示
+- ResizeHandle.vue   栏宽拖动

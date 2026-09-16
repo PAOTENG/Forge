@@ -1,0 +1,33 @@
+.env
+.env.local
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+dist/
+.vite/
+*.log
+*.aux
+data/
+targets/order-api/.git/
+targets/order-api/.git.bak/
+frontend/dist/
+backend/*.db
+.DS_Store
+Thumbs.db
+
+# Personal materials: resume, contact info, photos, job-search notes
+简历/
+简历信息收集/
+
+# Machine-local environment inventory (host paths, GPU, local tool versions)
+docs/本地环境与技术栈清单.md
+
+# Headless-eval raw traces (local git identity, bulky JSON)
+项目测试/原始结果/
+
+# Editor / local tooling
+.cursor/
+*.swp

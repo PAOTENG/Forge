@@ -1,0 +1,11 @@
+{
+  "id": "word",
+  "name": "Word",
+  "version": "1.0.0",
+  "publisher": "Forge",
+  "summary": "打开并编辑 .docx。",
+  "exts": [".docx"],
+  "kind": "document",
+  "recommended": true,
+  "license": "MIT"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "pdf",
+  "name": "PDF 预览",
+  "version": "1.0.0",
+  "publisher": "Forge",
+  "summary": "浏览器内预览 PDF。",
+  "exts": [".pdf"],
+  "kind": "pdf",
+  "recommended": true,
+  "license": "MIT"
+}

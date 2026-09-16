@@ -1,0 +1,16 @@
+本文件夹：HTTP / SSE / WebSocket 路由（最小级）
+作用：值班台和手机 H5 的 API。Agent 计算不在这里，这里只转给 services。
+
+文件：
+- chat.py       发消息、SSE 续订、停止、批准（核心对话入口，热修第三环）
+- sessions.py   会话 CRUD、文件树、diff 预览、回退、挂沙箱
+- duty.py       收件箱、排查（热修第二环）、webhook、批准卡片、启停/切题
+
+读法（主线）：duty.investigate → chat.send_message → chat.approve。
+每个函数文档串格式与 watchdog 相同：业务 / 技术 / 是否主线 / 谁调用。
+- auth.py       首次启用、登录、用户角色
+- models.py     模型列表与默认模型
+- health.py     健康检查
+- system.py     磁盘/目录浏览（禁 C 盘）
+- plugins.py    插件库
+- pty.py        用户终端 WebSocket

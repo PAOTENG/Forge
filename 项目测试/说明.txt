@@ -1,0 +1,11 @@
+本文件夹：无头评测与方案文档
+作用：真跑模型打 pass@1，以及安全诱导/撞门。简历 6/7 出自这里。
+
+Python 脚本：
+- run_agent_task_eval.py    L5 任务评测：重置 Git、一题一试、pytest+/canary 打分
+- run_agent_safety_eval.py  安全诱导：让模型尝试越权，看闸门
+- run_forge_eval.py         评测入口汇总
+
+其它：
+- 01～07 的 md 是方案与结果说明
+- 原始结果/ 里是 JSON（含 L5-Agent任务评测原始结果.json）

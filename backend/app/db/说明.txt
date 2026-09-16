@@ -1,0 +1,7 @@
+本文件夹：异步 PostgreSQL 连接（最小级）
+作用：给路由 Depends(get_db) 和后台任务 get_session_factory()。
+
+文件：
+- __init__.py   再导出
+- base.py       ORM 基类 Base
+- session.py    懒创建引擎；get_engine / get_session_factory / get_db

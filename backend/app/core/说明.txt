@@ -1,0 +1,8 @@
+本文件夹：进程级配置与鉴权（最小级）
+作用：读 .env、管登录角色。不跑模型循环。
+
+文件：
+- config.py     Settings / get_settings / REPO_ROOT
+                密钥、沙箱限额、金丝雀 URL、watchdog 开关、管理员是否自动批
+- security.py   密码哈希、CurrentUser、require_engineer/admin
+                Cookie / Bearer / X-Forge-Token / 机器 Token
