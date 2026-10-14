@@ -18,6 +18,16 @@ Version **0.6.0**. Personal demo, not a production on-call platform.
 - First-run admin signup; roles `admin` / `engineer` / `viewer`
 - Optional WeCom textcard / DingTalk actionCard / generic webhook for alerts and HITL cards
 
+
+# Home page：
+<img width="2549" height="1320" alt="image" src="https://github.com/user-attachments/assets/b239dc37-bffc-48ba-ad36-e18f6a44e0a6" />
+
+# Once the conversation is opened, the system will automatically transfer the error log, the erroneous workspace, and the information of the personnel conducting the investigation to the new conversation, and then perform AI error detection.
+## The files on the left can be manually modified. The terminal can execute commands. After the troubleshooting and repair are completed, you can restart the business at the top of the chat box and submit the push to Gitee.
+<img width="2517" height="1338" alt="image" src="https://github.com/user-attachments/assets/3b2d340c-20af-470b-ac80-d00296977eb5" />
+
+
+
 ## Architecture
 
 ```
