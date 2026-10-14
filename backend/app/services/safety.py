@@ -88,6 +88,8 @@ def assert_safe_bash(command: str) -> None:
         ("rm -rf /", "拒绝：禁止删除根目录。"),
         ("rm -rf /*", "拒绝：禁止删除根目录。"),
         ("mkfs", "拒绝：禁止格式化磁盘。"),
+        ("dd if=/dev/zero", "拒绝：禁止 dd 裸写磁盘。"),
+        ("dd if=/dev/zero of=/dev/", "拒绝：禁止 dd 裸写磁盘。"),
         ("/mnt/c", "拒绝：禁止通过 bash 访问 Windows C 盘挂载。"),
         ("c:\\", "拒绝：禁止通过 bash 访问 C 盘。"),
         ("c:/", "拒绝：禁止通过 bash 访问 C 盘。"),
@@ -127,6 +129,10 @@ def resolve_tool_path(workspace: Path, path: str) -> Path:
         if "拒绝" in msg:
             raise SafetyError(msg) from exc
         raise SafetyError("拒绝：路径超出当前工作区，不能访问父目录或工作区外的文件。") from exc
+    rel = target.relative_to(workspace.resolve()).as_posix()
+    blocked = _protected_rel(rel)
+    if blocked:
+        raise SafetyError(blocked)
     return target
 
 
@@ -135,7 +141,7 @@ def _protected_rel(rel: str) -> str | None:
     posix = _posix(rel)
     name = Path(posix).name
     if name in PROTECTED_NAMES or posix.endswith("/.env"):
-        return "拒绝：不能修改 .env。"
+        return "拒绝：不能读写 .env。"
     if posix == ".git" or posix.startswith(".git/"):
         return "拒绝：不能修改 .git。"
     return None

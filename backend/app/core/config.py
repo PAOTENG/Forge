@@ -89,6 +89,21 @@ class Settings(BaseSettings):
     # True 时管理员调变更工具跳过 HITL；无头评测另设 ForgeContext.auto_approve
     forge_admin_auto_approve: bool = False
 
+    # RoomCheck 业务 Agent（A2A 对等体，不是 order-api）
+    roomcheck_a2a_url: str = "http://127.0.0.1:8791"
+    # Ledger 知识库问答 Agent，与本仓库同级的 ledger-kb
+    kb_a2a_url: str = "http://127.0.0.1:8793"
+    a2a_token: str = "forge-roomcheck-a2a"
+    a2a_jwt_secret: str = ""  # 空则用 a2a_token 签短时 JWT
+    a2a_jwt_ttl_seconds: int = 300
+    # 对端尚未切 JWT 时允许旧的静态 Bearer；生产应收成 false
+    a2a_allow_legacy_token: bool = True
+    a2a_pin_cards: bool = True
+    a2a_tls_ca: str = ""
+    a2a_tls_cert: str = ""
+    a2a_tls_key: str = ""
+    forge_audit_fail_closed: bool = True
+
     @property
     def sync_database_url(self) -> str:
         """

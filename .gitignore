@@ -10,7 +10,9 @@ dist/
 .vite/
 *.log
 *.aux
-data/
+# Generated A2A mTLS material (keep the generator script)
+infra/certs/*.pem
+infra/certs/*-key.pem
 targets/order-api/.git/
 targets/order-api/.git.bak/
 frontend/dist/

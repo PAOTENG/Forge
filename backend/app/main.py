@@ -6,13 +6,21 @@ FastAPI 进程入口：挂上所有路由，启动时迁移库、拉起业务、
     CORS 允许局域网 Vite，方便手机打开值班台。
 """
 
+import os
 from contextlib import asynccontextmanager
 
+# 模型请求直连。系统代理指向 127.0.0.1:7892 但代理未启动时，LiteLLM 会连接被拒绝。
+os.environ["DISABLE_AIOHTTP_TRUST_ENV"] = "true"
+
+import litellm
 from alembic import command
+
+litellm.disable_aiohttp_trust_env = True
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.a2a.server import mount_a2a
 from app.core.config import BACKEND_ROOT
 from app.routers import auth, chat, duty, health, models, plugins, pty, sessions, system
 
@@ -41,7 +49,15 @@ async def lifespan(_app: FastAPI):
         except Exception:
             pass
     start_watchdog()
+    from app.a2a.roomcheck_watchdog import start_roomcheck_watchdog, stop_roomcheck_watchdog
+
+    start_roomcheck_watchdog()
+    from app.a2a.kb_watchdog import start_kb_watchdog, stop_kb_watchdog
+
+    start_kb_watchdog()
     yield
+    await stop_kb_watchdog()
+    await stop_roomcheck_watchdog()
     await stop_watchdog()
 
 
@@ -66,3 +82,4 @@ app.include_router(models.router, prefix="/api")
 app.include_router(plugins.router, prefix="/api")
 app.include_router(pty.router, prefix="/api")
 app.include_router(duty.router, prefix="/api")
+mount_a2a(app)

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -151,6 +152,24 @@ _prompt_snap: dict | None = None
 _prompt_snap_at = 0.0
 
 
+def investigation_subject(alert: dict) -> dict:
+    """按告警来源决定要打开的项目目录。知识库超时不能落到 order-api。"""
+    from app.core.config import REPO_ROOT
+    from app.services.supervisor import target_root
+
+    service = str(alert.get("service") or "")
+    blob = " ".join(
+        [service, str(alert.get("title") or ""), str(alert.get("summary") or "")]
+    )
+    parent = REPO_ROOT.parent
+    lowered = blob.lower()
+    if "kb-qa" in lowered or "知识库" in blob or "ledger" in lowered:
+        return {"kind": "ledger", "name": "Ledger", "workspace": parent / "ledger-kb"}
+    if "roomcheck" in lowered or "客房" in blob:
+        return {"kind": "roomcheck", "name": "RoomCheck", "workspace": parent / "roomcheck"}
+    return {"kind": "order-api", "name": "order-api", "workspace": target_root()}
+
+
 def format_investigation_prompt(alert: dict, state: dict | None = None) -> str:
     """
     【业务】把纸条翻译成给模型的第一段话：只修当前激活题、仓库在哪、金丝雀正文、
@@ -158,6 +177,36 @@ def format_investigation_prompt(alert: dict, state: dict | None = None) -> str:
     【技术】state 缺省则 snapshot；3 秒内复用，避免列表 40 条每条打一次 /canary。
     【是否主线】是。investigate 返回的 prompt、前端代发的第一条都来自它。
     """
+    subject = investigation_subject(alert)
+    if subject["kind"] != "order-api":
+        workspace = subject["workspace"]
+        parts = [
+            f"你正在排查 {subject['name']}，不是 order-api 下单热修。",
+            f"工作区必须是：{workspace}",
+            "禁止读取或修改 order-api 的 bugs.py、app.py、active_bug.txt、tests/。那些文件和这次告警无关。",
+            "只在上面这个工作区里用 read_file、grep_files、list_dir 定位，并用 write_file 修改该项目自己的文件。",
+        ]
+        if subject["kind"] == "ledger":
+            parts.append(
+                "Ledger 是知识库问答 Agent。相关目录：worker/app（LangGraph 检索与消费）、"
+                "java-api（任务排队和超时上报）、frontend、corpus。超时通常是 worker 没在消费 RabbitMQ，或嵌入/重排失败。"
+            )
+        elif subject["kind"] == "roomcheck":
+            parts.append("RoomCheck 是客房验收 Agent。只改这个仓库里的业务代码和测试。")
+        parts.append(f"标题：{alert.get('title') or '未命名'}")
+        if alert.get("service"):
+            parts.append(f"服务：{alert['service']}")
+        if alert.get("summary"):
+            parts.append(f"报错摘要：{alert['summary']}")
+        if alert.get("stack"):
+            parts.append("报错日志：\n" + str(alert["stack"])[:6000])
+        else:
+            parts.append("报错日志：告警没有另附堆栈，以上摘要就是这次失败记录。")
+        if alert.get("link"):
+            parts.append(f"相关链接：{alert['link']}")
+        parts.append("先说明要改的文件和原因，再做最小修改。不要重启 order-api，不要切 bug 题号。")
+        return "\n".join(parts)
+
     from app.services.supervisor import snapshot, target_root
 
     global _prompt_snap, _prompt_snap_at
@@ -438,3 +487,50 @@ async def _send_generic(title: str, desc: str, url: str) -> None:
             json={"title": title, "text": desc, "url": url, "source": "forge-duty"},
         )
         res.raise_for_status()
+
+
+def alert_public(row) -> dict:
+    return {
+        "id": row.id,
+        "title": row.title,
+        "summary": row.summary,
+        "service": row.service,
+        "severity": row.severity,
+        "source": row.source,
+        "stack": row.stack,
+        "link": row.link,
+        "status": row.status,
+        "session_id": row.session_id,
+        "created_at": row.created_at.isoformat() if row.created_at else "",
+    }
+
+
+async def persist_alert(body: dict) -> dict:
+    """Insert a duty alert. A2A ingest-incident de-dupes open rows with the same title."""
+    from sqlalchemy import select
+
+    from app.db.session import get_session_factory
+    from app.models.duty import DutyAlertRow
+
+    data = normalize_inbound(body)
+    factory = get_session_factory()
+    async with factory() as db:
+        if data.get("source") == "a2a" and data.get("title"):
+            existing = (
+                await db.execute(
+                    select(DutyAlertRow).where(
+                        DutyAlertRow.source == "a2a",
+                        DutyAlertRow.title == data["title"],
+                        DutyAlertRow.status.in_(("open", "investigating", "acked")),
+                    )
+                )
+            ).scalars().first()
+            if existing:
+                return alert_public(existing)
+        row = DutyAlertRow(**data)
+        db.add(row)
+        await db.commit()
+        await db.refresh(row)
+        public = alert_public(row)
+    asyncio.create_task(notify_alert(public))
+    return public

@@ -32,7 +32,7 @@ from app.models.agent_state import AgentStateRow
 from app.services.llm_prefs import preferred_model
 from app.services.messages import add_message
 from app.services.project_notes import load_project_notes
-from app.tools import ForgeContext, all_tools
+from app.tools import ForgeContext, all_tools, readonly_review_tools
 
 set_tracing_disabled(True)
 log = logging.getLogger("forge.agent")
@@ -43,7 +43,9 @@ INSTRUCTIONS = """你是 Forge，值班机上的本地 coding agent。
 - 只在当前选定的工作区内活动，禁止访问父目录。
 - 读代码优先用 grep_files、glob_files、list_dir、read_file、search_code。
 - 查看改动时用只读的 git_status / git_diff / git_log / git_branch。
-- 监控中的 order-api 热修：先诊断，再 write_file，再 run_tests（磁盘上的 pytest）。测试不能代替正在跑的 :8790 进程。测试通过后：git_commit、git_push，然后 restart_service。每一步变更都要等人批准。
+- 监控中的 order-api 热修：先诊断，再 write_file，再调用 review_hotfix（只读评审子 Agent），通过后再 run_tests（磁盘上的 pytest）。测试不能代替正在跑的 :8790 进程。测试通过后：git_commit、git_push，然后 restart_service。每一步变更都要等人批准。
+- 若用户消息写明正在排查 Ledger 知识库问答 Agent 或 RoomCheck，工作区就是消息里给出的那个目录。只改那个项目的文件，禁止去改 order-api 的 bugs.py、app.py、active_bug.txt。
+- write_file 之后、run_tests / restart_service 之前必须调用 review_hotfix。若评审驳回，按原因改完再评，不要直接重启。
 - 禁止把 restart_service 当成「试一试修复」的手段。禁止 force push。
 - 工具会在代码里拒绝，即使你调用了也一样：工作区外路径、C 盘、绝对路径、.env、git reset --hard、force push。热修范围（监控中的 order-api）还会拒绝 tests/、README、AGENTS.md、active_bug.txt；只能写 bugs.py 和 app.py。若工具返回「拒绝」，把原因告诉用户，不要再尝试绕过。
 - 会改仓库的 git_* 工具跑在宿主上，这样才能用值班机已有的 git 凭据。
@@ -51,8 +53,19 @@ INSTRUCTIONS = """你是 Forge，值班机上的本地 coding agent。
 - build 模式用 write_file 改文件、用 delete_file 删文件、用 run_tests 验收。
 - bash 和 run_tests：order-api 带有 .forge-host-tests，pytest 在宿主跑；其他仓库走 Linux 沙箱，工作区挂在 /workspace。
 - Python、diff、shell 命令放在 markdown 代码块里。
+- 客房验收业务 Agent（RoomCheck）软件故障：用 a2a_roomcheck 经 A2A 调 room-canary / room-inspect，禁止 curl 对端私有 HTTP。缺茶杯是业务不合格，不要当成 Forge 热修。
+- 知识库问答交给同级的 kb-qa-agent：用 a2a_kb，skill 用 ask 或 canary。不要用 curl 打 8792。金丝雀失败由值班巡检写入收件箱并推送，不要当成热修。
 - 回答简短，改了哪个文件就写精确路径。
 - 若用户消息以 [当前编辑器打开：…] 开头，该文件已在屏幕上，相关时先读它。
+"""
+
+REVIEWER_INSTRUCTIONS = """你是 Forge 的只读热修评审员，不是作者。
+
+规则：
+- 只能读代码和 git_status / git_diff。禁止改文件、跑测试、提交、重启。
+- 检查改动是否最小，是否只动了 bugs.py / app.py，有没有改 tests/、README、AGENTS.md、active_bug.txt。
+- 用几句话给出结论：通过 或 驳回。驳回必须写明原因。
+- 不要自己做热修，不要建议 force push。
 """
 
 
@@ -196,6 +209,7 @@ def make_forge_context(
     role: str = "",
     auto_approve: bool | None = None,
     allow_git_push: bool = True,
+    original_intent: str = "",
 ) -> ForgeContext:
     """
     【业务】每个工具函数第一参能读到的「这次值班上下文」：在哪个文件夹干活、能不能自动批准、
@@ -211,6 +225,7 @@ def make_forge_context(
         role：admin / engineer 等；管理员且开了自动批配置时 auto_approve 会变 True。
         auto_approve：评测脚本会传 True 跳过人工点允许；值班台一般是 None。
         allow_git_push：是否允许 git_push 工具真推远程。
+        original_intent：本轮用户原话，给工具 Guardrail 做意图一致性。
     【里面调用】
         get_settings()：看管理员是否自动批准。
         is_target_workspace(workspace)：当前目录是不是被监控的 order-api，是则热修白名单。
@@ -240,6 +255,7 @@ def make_forge_context(
         auto_approve=approve,
         allow_git_push=allow_git_push,
         write_scope=write_scope,
+        original_intent=(original_intent or "")[:4000],
     )
 
 
@@ -262,18 +278,42 @@ def build_agent(
         load_project_notes：读项目笔记前 6KB。
         resolve_model：选出模型对象。
         all_tools()：17 个 @function_tool。
-        Agent(...)：SDK 的 Agent 类。
+        readonly_review_tools()：只读评审子 Agent 的工具面。
+        Agent(...)：SDK 的 Agent 类；reviewer.as_tool 挂成 review_hotfix。
     【是否主线】是。模型能调哪些工具、热修顺序写在哪，都在这里挂上。
     """
     extra = f"\n当前模式：{mode}。"
     notes = load_project_notes(workspace) if workspace else ""
     if notes:
         extra += "\n\n项目说明（AGENTS.md / FORGE.md）：\n" + notes
+    model = resolve_model(model_id)
+    from app.services.tool_audit import ForgeToolAuditHooks
+
+    hooks = ForgeToolAuditHooks()
+    reviewer = Agent[ForgeContext](
+        name="hotfix_reviewer",
+        instructions=REVIEWER_INSTRUCTIONS,
+        model=model,
+        tools=readonly_review_tools(),
+        hooks=hooks,
+    )
     return Agent[ForgeContext](
         name="Forge",
         instructions=INSTRUCTIONS + extra,
-        model=resolve_model(model_id),
-        tools=all_tools(),
+        model=model,
+        hooks=hooks,
+        tools=all_tools()
+        + [
+            reviewer.as_tool(
+                tool_name="review_hotfix",
+                tool_description=(
+                    "只读评审当前热修。传入刚改的文件和修改意图；"
+                    "子 Agent 会读 diff 和相关代码，判断是否越权改测试或题号。"
+                    "返回通过或驳回及原因。write_file 之后、run_tests / restart_service 之前调用。"
+                ),
+                max_turns=8,
+            )
+        ],
     )
 
 
@@ -634,6 +674,7 @@ class SessionRuntime:
     replay: list[dict[str, Any]] = field(default_factory=list)
     seq: int = 0
     status: str = "idle"
+    original_intent: str = ""
 
 
 # session_id → 进程内 Runtime。API 重启后清空，历史靠 Postgres 恢复。
@@ -951,6 +992,7 @@ async def start_prompt(
     rt.seq = 0
     rt.input_items = close_unanswered_tool_calls(rt.input_items)
     rt.input_items.append({"role": "user", "content": user_text})
+    rt.original_intent = user_text
     agent = build_agent(mode, model_id, workspace)
     ctx = make_forge_context(
         session_id,
@@ -961,6 +1003,7 @@ async def start_prompt(
         role=role,
         auto_approve=auto_approve,
         allow_git_push=allow_git_push,
+        original_intent=rt.original_intent,
     )
     result = Runner.run_streamed(agent, rt.input_items, context=ctx, max_turns=40)
     rt.result = result
@@ -1025,6 +1068,7 @@ async def start_resume(
         role=role,
         auto_approve=auto_approve,
         allow_git_push=allow_git_push,
+        original_intent=rt.original_intent,
     )
     result = Runner.run_streamed(agent, state, context=ctx, max_turns=40)
     rt.result = result

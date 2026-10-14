@@ -67,6 +67,14 @@ def test_git_tool_refuses_force():
         assert_safe_git(["push", "--force", "origin"])
 
 
+def test_read_refuses_env(tmp_path: Path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / ".env").write_text("SECRET=1", encoding="utf-8")
+    with pytest.raises(SafetyError, match=".env"):
+        resolve_tool_path(ws, ".env")
+
+
 def test_read_also_refuses_absolute(tmp_path: Path):
     ws = tmp_path / "ws"
     ws.mkdir()

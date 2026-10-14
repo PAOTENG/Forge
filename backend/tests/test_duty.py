@@ -31,7 +31,19 @@ def test_normalize_manual():
     assert data["stack"] == "Traceback"
 
 
-def test_investigation_prompt_mentions_hotfix():
+def test_ledger_prompt_opens_ledger_repo_not_order_api():
+    text = format_investigation_prompt(
+        {
+            "title": "知识库问答超时 · abc",
+            "service": "kb-qa",
+            "summary": "检索超时",
+            "stack": "worker down",
+        }
+    )
+    assert "Ledger" in text
+    assert "ledger-kb" in text
+    assert "worker down" in text
+    assert "禁止读取或修改 order-api 的 bugs.py" in text
     text = format_investigation_prompt({"title": "x", "stack": "boom"})
     assert "热修" in text
     assert "boom" in text

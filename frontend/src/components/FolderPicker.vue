@@ -117,7 +117,7 @@ watch(
       </span>
     </div>
 
-    <div class="panel-scroll mt-2 max-h-52 overflow-auto rounded-xl border border-line bg-bg-elev">
+    <div class="panel-scroll mt-2 max-h-24 overflow-auto rounded-xl border border-line bg-bg-elev">
       <p v-if="loading" class="px-3 py-4 text-[12px] text-mute">正在读取…</p>
       <p v-else-if="browse && !browse.entries.length" class="px-3 py-4 text-[12px] text-mute">
         没有子文件夹
@@ -126,7 +126,7 @@ watch(
         v-for="entry in browse?.entries || []"
         :key="entry.path"
         type="button"
-        class="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-mist/90 hover:bg-panel-2"
+        class="flex w-full items-center gap-2 px-3 py-1 text-left text-[13px] text-mist/90 hover:bg-panel-2"
         @click="openPath(entry.path)"
         @dblclick="openPath(entry.path)"
       >

@@ -5,6 +5,7 @@
 - __init__.py
     ForgeContext     一次 run 的侧信道（工作区、是否自动批、hotfix 写范围）
     all_tools()      返回 17 个工具
+    readonly_review_tools()  只读评审子 Agent 用（读文件 + git_diff）
     只读：read_file / list_dir / grep_files / glob_files / search_code
           git_status / git_diff / git_log / git_branch
     8 类变更（需 HITL，仅 build 模式）：
@@ -13,5 +14,5 @@
     _needs_hitl / _is_build   交给 SDK 决定是否暂停、是否对模型可见
 
 调用关系：
-    agent_runtime.build_agent → all_tools()
+    agent_runtime.build_agent → all_tools() + review_hotfix(as_tool)
     工具内部 → safety / sandbox / supervisor / backup / indexer

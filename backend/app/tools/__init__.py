@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
+import json
 import os
 import subprocess
 from dataclasses import dataclass
@@ -58,6 +59,7 @@ class ForgeContext:
         auto_approve：评测/管理员可跳过 HITL，但 safety 闸门仍执行。
         allow_git_push：无头评测 False，git_push 直接返回 skipped。
         write_scope：workspace 普通仓；hotfix 监控仓只允许 bugs.py/app.py。
+        original_intent：本轮用户原话，给 Guardrail 做意图一致性，不进提示词。
     【谁创建】agent_runtime.make_forge_context。
     """
 
@@ -70,6 +72,7 @@ class ForgeContext:
     auto_approve: bool = False
     allow_git_push: bool = True
     write_scope: str = "workspace"
+    original_intent: str = ""
 
 
 def _safe_path(ctx: RunContextWrapper[ForgeContext], path: str) -> Path:
@@ -152,6 +155,8 @@ def _grep_sync(workspace: Path, root: Path, pattern: str) -> str:
             continue
         if file.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".exe", ".dll"}:
             continue
+        if file.name in {".env", ".env.local", ".env.production"} or file.name.endswith(".env"):
+            continue
         try:
             text = file.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -189,6 +194,8 @@ def _glob_sync(root: Path, pattern: str) -> str:
         if not file.is_file():
             continue
         if any(part in skip for part in file.parts):
+            continue
+        if file.name in {".env", ".env.local", ".env.production"}:
             continue
         rel = file.relative_to(root).as_posix()
         if fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(file.name, pattern):
@@ -367,6 +374,9 @@ async def git_commit(ctx: RunContextWrapper[ForgeContext], message: str, paths: 
     msg = (message or "").strip()
     if len(msg) < 3:
         raise ValueError("提交说明太短")
+    from app.services.dlp import assert_safe_to_persist
+
+    assert_safe_to_persist(msg, where="git_commit message")
     items = [p.strip().replace("\\", "/") for p in paths.split(",") if p.strip()]
     blocked = {".env", ".env.local", ".env.production"}
     if any(p in blocked or p.endswith("/.env") for p in items):
@@ -495,10 +505,12 @@ async def write_file(ctx: RunContextWrapper[ForgeContext], path: str, content: s
         闸门在 auto_approve 时也跑。
     【输入】path 相对路径；content 全文。
     【输出】Wrote rel (n chars)。拒绝则 SafetyError 文本回给模型。
-    【调用】safety.assert_write_path、backup.snapshot_before_change。
+    【调用】safety.assert_write_path、backup.snapshot_before_change、dlp.assert_safe_to_persist。
     """
     from app.services.backup import snapshot_before_change
+    from app.services.dlp import assert_safe_to_persist
 
+    assert_safe_to_persist(content, where="write_file")
     target = assert_write_path(ctx.context.workspace, path, ctx.context.write_scope)
     await snapshot_before_change(
         ctx.context.session_id,
@@ -552,16 +564,86 @@ async def bash(ctx: RunContextWrapper[ForgeContext], command: str) -> str:
     【输入】command：单条命令。输出：stdout/stderr 或 [exit n]。
     【调用】sandbox_manager.exec。
     """
+    from app.services.dlp import assert_no_egress, assert_safe_to_persist
+
     assert_safe_bash(command)
+    assert_no_egress(command)
+    assert_safe_to_persist(command, where="bash")
     return await asyncio.to_thread(
         sandbox_manager.exec, ctx.context.session_id, ctx.context.workspace, command
     )
 
 
+@function_tool
+async def a2a_roomcheck(
+    ctx: RunContextWrapper[ForgeContext],
+    skill: str = "canary",
+    room_no: str = "",
+    extra: str = "",
+) -> str:
+    """
+    通过官方 A2A 向 RoomCheck 业务 Agent 委派任务。skill=canary 复检空茶几金丝雀；
+    skill=inspect 走客房验收。禁止 curl RoomCheck 私有 HTTP。缺茶杯是业务结果，不是热修。
+    """
+    from app.a2a.client import roomcheck_skill
+    from app.services.dlp import assert_safe_to_persist, redact_text
+
+    name = "room-canary" if skill.strip().lower() in {"canary", "room-canary", ""} else "room-inspect"
+    payload = {}
+    if room_no.strip():
+        payload["room_no"] = room_no.strip()
+    if extra.strip():
+        assert_safe_to_persist(extra, where="a2a_roomcheck extra")
+        payload["extra"] = extra.strip()
+    result = await roomcheck_skill(name, payload)
+    return redact_text(json.dumps(result, ensure_ascii=False)[:4000])
+
+
+@function_tool
+async def a2a_kb(
+    ctx: RunContextWrapper[ForgeContext],
+    skill: str = "ask",
+    question: str = "",
+) -> str:
+    """
+    通过官方 A2A 调用知识库问答 Agent。skill=ask 时传入 question；
+    skill=canary 只做对端自检。禁止 curl 对端私有 HTTP。
+    """
+    from app.a2a.client import kb_skill
+    from app.services.dlp import assert_safe_to_persist, redact_text
+
+    name = (skill or "ask").strip().lower()
+    if name in {"canary", "kb-canary"}:
+        result = await kb_skill("kb-canary")
+    else:
+        text = question.strip()
+        if text:
+            assert_safe_to_persist(text, where="a2a_kb question")
+        result = await kb_skill("kb-ask", {"question": text})
+    return redact_text(json.dumps(result, ensure_ascii=False)[:4000])
+
+
+def readonly_review_tools():
+    """
+    【功能】只读评审子 Agent 的工具面：能看代码和 diff，不能改盘。
+    【思路】和 all_tools 共用同一批 @function_tool，闸门仍走 ForgeContext。
+    【调用】agent_runtime.build_agent 组 hotfix_reviewer。
+    """
+    return [
+        read_file,
+        list_dir,
+        grep_files,
+        glob_files,
+        git_status,
+        git_diff,
+    ]
+
+
 def all_tools():
     """
-    【功能】返回 SDK 要挂上的 17 个工具对象（顺序即模型可见列表）。
+    【功能】返回 SDK 要挂上的工具对象（顺序即模型可见列表）。
     【思路】只读在前、变更在后；build_agent 一次全挂，由 is_enabled/needs_approval 动态裁。
+            评审子 Agent 另走 readonly_review_tools，再 as_tool 挂到主管上。
     【输入】无。输出：function_tool 列表。
     【调用】agent_runtime.build_agent。
     """
@@ -583,4 +665,15 @@ def all_tools():
         write_file,
         delete_file,
         bash,
+        a2a_roomcheck,
+        a2a_kb,
     ]
+
+
+def _install_guardrails() -> None:
+    from app.services.guardrails import attach_tool_guardrails
+
+    attach_tool_guardrails(all_tools())
+
+
+_install_guardrails()

@@ -1,0 +1,3 @@
+from app.a2a.server import mount_a2a
+
+__all__ = ["mount_a2a"]

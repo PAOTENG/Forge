@@ -178,6 +178,15 @@ const workspaceName = computed(() => {
   const p = session.value?.workspace_path || workspace.value;
   return p.split(/[\\/]/).filter(Boolean).pop() || p;
 });
+const investigatingProject = computed(() => {
+  const alert = dutyAlerts.value[0];
+  const text = `${alert?.service || ""} ${alert?.title || ""} ${alert?.summary || ""}`;
+  if (/kb-qa|知识库|ledger/i.test(text)) return "Ledger · 知识库问答 Agent";
+  if (/roomcheck|客房/i.test(text)) return "RoomCheck · 客房验收 Agent";
+  if (alert?.service) return alert.service;
+  if (session.value) return workspaceName.value;
+  return "";
+});
 const isMarkdown = computed(() => /\.(md|markdown)$/i.test(filePath.value));
 const isTex = computed(() => /\.(tex|ltx|latex)$/i.test(filePath.value));
 const isOverlay = computed(() =>
@@ -654,6 +663,13 @@ async function startInvestigate(id: string) {
     const out = await investigateAlert(id);
     if (out.resumed) {
       await hydrate(out.session);
+      if (out.relocated && out.prompt) {
+        messages.push({
+          role: "system",
+          text: `工作区已改到 ${out.session.workspace_path}`,
+        });
+        await dispatchPrompt(out.prompt);
+      }
     } else {
       session.value = out.session;
       messages.splice(0, messages.length);
@@ -1521,6 +1537,13 @@ async function decide(approved: boolean, scope: "once" | "session" = "once") {
             {{ dutyMode ? "值班台 · 对话 / diff / 批准" : "本地编码工作室 · Docker 沙箱" }}
           </div>
         </div>
+        <div
+          v-if="meUser && investigatingProject"
+          class="ml-6 hidden border-l border-line pl-6 md:block"
+        >
+          <div class="text-[11px] text-mute">当前正在排查</div>
+          <div class="text-sm font-medium text-mist">{{ investigatingProject }}</div>
+        </div>
       </div>
       <div class="flex items-center gap-2 text-xs">
         <span v-if="meUser" class="hidden text-mute sm:inline">{{ meUser.display_name }} · {{ meUser.role }}</span>
@@ -1632,7 +1655,7 @@ async function decide(approved: boolean, scope: "once" | "session" = "once") {
     <div v-if="meUser && !session" class="relative min-h-0 flex-1 overflow-auto">
       <div class="forge-grid pointer-events-none absolute inset-0" />
       <div
-        class="relative mx-auto grid min-h-full w-full max-w-5xl items-center gap-12 px-6 py-16 lg:grid-cols-[1.05fr_0.95fr]"
+        class="relative mx-auto grid w-full max-w-5xl items-start gap-8 px-6 py-8 lg:grid-cols-[1.05fr_0.95fr]"
       >
         <div>
           <p class="text-[11px] font-medium uppercase tracking-[0.22em] text-ember">
@@ -1678,10 +1701,10 @@ async function decide(approved: boolean, scope: "once" | "session" = "once") {
           <p v-else-if="!hasKey" class="mt-4 text-sm text-ember">
             未检测到 API key。请在项目根目录 `.env` 填写 `DEEPSEEK_API_KEY` 后重启 API。
           </p>
-          <div v-if="sessions.length" class="mt-8 border-t border-line pt-5">
+          <div v-if="sessions.length" class="mt-4 border-t border-line pt-3">
             <p class="text-sm font-medium text-mist">最近会话</p>
-            <ul class="mt-3 space-y-2">
-              <li v-for="s in sessions" :key="s.id" class="flex gap-2">
+            <ul class="mt-2 space-y-2">
+              <li v-for="s in sessions.slice(0, 1)" :key="s.id" class="flex gap-2">
                 <button
                   type="button"
                   class="min-w-0 flex-1 rounded-xl border border-line bg-bg-elev px-3 py-2 text-left transition-colors hover:border-ember/50"
@@ -1705,9 +1728,10 @@ async function decide(approved: boolean, scope: "once" | "session" = "once") {
           </div>
         </div>
       </div>
-      <div class="relative mx-auto w-full max-w-5xl space-y-4 px-6 pb-16">
+      <div class="relative mx-auto w-full max-w-5xl space-y-4 px-6 pb-8">
         <TargetCard
           :target="targetInfo"
+          :latest="dutyAlerts[0] || null"
           :busy="dutyBusy"
           :can-write="canWrite"
           @start="onTargetStart"

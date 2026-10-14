@@ -22,8 +22,10 @@ from app.models.agent_state import AgentStateRow
 from app.models.audit import AuditRow
 from app.models.message import MessageRow
 from app.models.session import SessionRow
+from app.models.tool_call import ToolCallRow
 from app.schemas import FileSaveIn, FsEntryIn, FsRenameIn, MessageOut, SessionCreate, SessionOut, WritePreviewIn
 from app.services.agent_runtime import has_live_approval, is_active, model_label, run_status
+from app.services.tool_audit import verify_chain
 from app.services.indexer import index_workspace
 from app.services.sandbox import SandboxError, sandbox_manager
 from app.services.viewers import classify
@@ -210,6 +212,39 @@ async def list_audits(session_id: str, db: AsyncSession = Depends(get_db)) -> li
         }
         for r in rows
     ]
+
+
+@router.get("/{session_id}/tool-calls")
+async def list_tool_calls(session_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    """【业务】值班台事后追查：这次会话 Agent 调了哪些工具，哈希链是否完整。"""
+    await _row(db, session_id)
+    rows = (
+        await db.execute(
+            select(ToolCallRow)
+            .where(ToolCallRow.session_id == session_id)
+            .order_by(ToolCallRow.created_at.asc(), ToolCallRow.id.asc())
+        )
+    ).scalars().all()
+    return {
+        "chain_ok": verify_chain(list(rows)),
+        "items": [
+            {
+                "id": r.id,
+                "tool_name": r.tool_name,
+                "tool_call_id": r.tool_call_id,
+                "agent_name": r.agent_name,
+                "arguments": r.arguments[:2000],
+                "output": r.output[:2000],
+                "actor": r.actor,
+                "state": r.state,
+                "decision": r.decision,
+                "prev_hash": r.prev_hash,
+                "hash": r.hash,
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+            }
+            for r in rows
+        ],
+    }
 
 
 @router.get("/{session_id}/tree")

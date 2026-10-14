@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import html
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -42,6 +43,7 @@ from app.services.duty import (
     consume_pending,
     format_investigation_prompt,
     h5_url,
+    investigation_subject,
     lookup_pending,
     normalize_inbound,
     notify_alert,
@@ -250,6 +252,22 @@ async def demo_alert(
     return {"ok": True, "alert": public}
 
 
+def _workspace_for_alert(row: DutyAlertRow) -> Path:
+    """知识库 / RoomCheck 告警打开对应仓库；order-api 仍用值班热修目录。"""
+    subject = investigation_subject(
+        {
+            "title": row.title,
+            "summary": row.summary,
+            "service": row.service,
+        }
+    )
+    if subject["kind"] == "order-api":
+        settings = get_settings()
+        raw = settings.forge_duty_workspace.strip() or str(subject["workspace"])
+        return resolve_workspace(raw)
+    return resolve_workspace(str(subject["workspace"]))
+
+
 def _prompt_from_row(row: DutyAlertRow) -> str:
     """
     【业务】从这张纸条生成给模型的第一段工作说明（只修当前题、先测后重启）。
@@ -310,22 +328,25 @@ async def investigate(
     if row.session_id:
         existing = await db.get(SessionRow, row.session_id)
         if existing:
+            desired = _workspace_for_alert(row)
+            relocated = Path(existing.workspace_path).resolve() != desired.resolve()
+            if relocated:
+                existing.workspace_path = str(desired)
+                existing.title = f"值班 · {row.title}"[:200]
+                await db.commit()
             try:
-                sandbox_manager.ensure(existing.id, resolve_workspace(existing.workspace_path))
+                sandbox_manager.ensure(existing.id, desired)
             except (SandboxError, WorkspaceError) as exc:
                 raise HTTPException(500, str(exc)) from exc
             return {
                 "ok": True,
                 "resumed": True,
+                "relocated": relocated,
                 "prompt": _prompt_from_row(row),
                 "session": _session_out(existing),
             }
-    settings = get_settings()
-    from app.services.supervisor import target_root
-
-    workspace_path = settings.forge_duty_workspace.strip() or str(target_root())
     try:
-        workspace = resolve_workspace(workspace_path)
+        workspace = _workspace_for_alert(row)
     except WorkspaceError as exc:
         raise HTTPException(400, str(exc)) from exc
     session = SessionRow(
@@ -360,6 +381,7 @@ async def investigate(
     return {
         "ok": True,
         "resumed": False,
+        "relocated": False,
         "prompt": _prompt_from_row(row),
         "session": _session_out(session),
     }

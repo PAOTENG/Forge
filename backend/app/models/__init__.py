@@ -10,6 +10,7 @@ ORM 模型汇总：让 Alembic 和业务代码一次 import 到全部表。
     MessageRow          聊天气泡 + 工具日志
     AgentStateRow       SDK input_items + 待审批工具（断线/重启后续聊）
     AuditRow            人点允许/拒绝的审计
+    ToolCallRow         工具调用哈希链审计
     FileBackupRow       写前快照元数据
     FileChunkRow        工作区切块，给 search_code
     DutyAlertRow        金丝雀/webhook 告警收件箱
@@ -29,6 +30,7 @@ from app.models.llm import CustomModelRow
 from app.models.message import MessageRow
 from app.models.plugin import InstalledPluginRow
 from app.models.session import SessionRow
+from app.models.tool_call import ToolCallRow
 from app.models.user import AuthSessionRow, UserRow
 
 __all__ = [
@@ -43,6 +45,7 @@ __all__ = [
     "InstalledPluginRow",
     "MessageRow",
     "SessionRow",
+    "ToolCallRow",
     "AuthSessionRow",
     "UserRow",
 ]

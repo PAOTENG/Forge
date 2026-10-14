@@ -572,6 +572,7 @@ export async function getDutyAlert(id: string): Promise<DutyAlert> {
 export async function investigateAlert(id: string): Promise<{
   ok: boolean;
   resumed: boolean;
+  relocated?: boolean;
   prompt: string;
   session: Session;
 }> {
